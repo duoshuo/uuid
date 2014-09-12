@@ -17,20 +17,20 @@ class TimeUUID {
 	 * 
 	 * @var int
 	 */
-	protected static $_nodeID;
+	protected static $_nodeId;
 
 	/**
 	 * 
 	 * @var int
 	 */
 	protected static $_clockSeq;
-
+	
 	/**
 	 * 
 	 * @param string $mac
 	 */
 	public static function setMAC($mac) {
-		self::$_nodeID = hexdec(str_replace(':', '', $mac));
+		self::$_nodeId = hexdec(str_replace(':', '', $mac));
 	}
 
 	/**
@@ -48,13 +48,52 @@ class TimeUUID {
 	public static function setShmKey($shmKey) {
 		self::$_shmKey = $shmKey;
 	}
-
-	protected static function _getTimeBefore($sec, $msec = null) {
-		$nanos = (int)$sec * 10000000 + (isset($msec) ? (int)$msec * 10 + mt_rand(0, 10 - 1) : mt_rand(0, 10000000 - 1));
-		return $nanos - self::START_EPOCH;
+	
+	protected static function _initClockSeq(){
+		$shmId = shm_attach(self::$_shmKey);
+		self::$_clockSeq = shm_get_var($shmId, self::$_clockSeqKey);
+		
+		if (self::$_clockSeq === false) {
+			$semId = sem_get(self::$_semKey);
+			sem_acquire($semId); //blocking
+		
+			if (shm_has_var($shmId, self::$_clockSeqKey)) {
+				self::$_clockSeq = shm_get_var($shmId, self::$_clockSeqKey);
+			}
+			else {
+				// 0x8000 variant (2 bits)
+				// clock sequence (14 bits)
+				self::$_clockSeq = 0x8000 | mt_rand(0, (1 << 14) - 1);
+					
+				shm_put_var($shmId, self::$_clockSeqKey, self::$_clockSeq);
+			}
+		
+			sem_release($semId);
+		}
+		
+		shm_detach($shmId);
 	}
 
-	protected static function _getTimeNow() {
+	
+	/**
+	 * 
+	 * @param int $sec
+	 * @param int $msec
+	 * @return string
+	 */
+	public static function createFromSeconds($sec, $msec = null) {
+		if (self::$_clockSeq === null)
+			self::_initClockSeq();
+		
+		$nanos = $sec * 10000000 + (isset($msec) ? $msec * 10 + mt_rand(0, 9) : mt_rand(0, 9999999));
+		
+		return new self($nanos - self::START_EPOCH);
+	}
+	
+	public static function now(){
+		if (self::$_clockSeq === null)
+			self::_initClockSeq();
+		
 		$timeOfDay = gettimeofday();
 		$nanos = $timeOfDay['sec'] * 10000000 + $timeOfDay['usec'] * 10;
 
@@ -78,50 +117,33 @@ class TimeUUID {
 
 		sem_release($semId);
 
-		return $nanosSince;
+		return new self($nanosSince);
 	}
 
 	/**
+	 * @var int
+	 */
+	protected $_nanosSince;
+
+	/**
 	 * 
-	 * @param int $sec
-	 * @param int $msec
+	 * @param int $nanosSince
+	 */
+	public function __construct($nanosSince){
+		$this->_nanosSince = $nanosSince;
+	}
+	
+	/**
 	 * @return string
 	 */
-	public static function getTimeUUID($sec = null, $msec = null) {
-		if (self::$_clockSeq === null) {
-			$shmId = shm_attach(self::$_shmKey);
-			self::$_clockSeq = shm_get_var($shmId, self::$_clockSeqKey);
-
-			if (self::$_clockSeq === false) {
-				$semId = sem_get(self::$_semKey);
-				sem_acquire($semId); //blocking
-
-				if (shm_has_var($shmId, self::$_clockSeqKey)) {
-					self::$_clockSeq = shm_get_var($shmId, self::$_clockSeqKey);
-				}
-				else {
-					// 0x8000 variant (2 bits)
-					// clock sequence (14 bits)
-					self::$_clockSeq = 0x8000 | mt_rand(0, (1 << 14) - 1);
-					
-					shm_put_var($shmId, self::$_clockSeqKey, self::$_clockSeq);
-				}
-
-				sem_release($semId);
-			}
-
-			shm_detach($shmId);
-		}
-
-		$nanosSince = isset($sec) ? self::_getTimeBefore($sec, $msec) : self::_getTimeNow();
-
+	public function __toString(){
 		return sprintf(
-			'%08x-%04x-%04x-%04x-%012x',
-			0xffffffff & $nanosSince,
-			$nanosSince >> 32 & 0xffff,
-			$nanosSince >> 48 & 0xffff | 0x1000,
-			self::$_clockSeq,
-			self::$_nodeID
-		);
+				'%08x-%04x-%04x-%04x-%012x',
+				$this->_nanosSince & 0xffffffff,
+				$this->_nanosSince >> 32 & 0xffff,
+				$this->_nanosSince >> 48 & 0x0fff | 0x1000,
+				self::$_clockSeq,
+				self::$_nodeId
+			);
 	}
 }
