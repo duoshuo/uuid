@@ -15,9 +15,9 @@ class TimeUUID {
 
 	/**
 	 * 
-	 * @var string
+	 * @var int
 	 */
-	protected static $_mac;
+	protected static $_nodeID;
 
 	/**
 	 * 
@@ -30,7 +30,7 @@ class TimeUUID {
 	 * @param string $mac
 	 */
 	public static function setMAC($mac) {
-		self::$_mac = strtolower(str_replace(':', '', $mac));
+		self::$_nodeID = hexdec(str_replace(':', '', $mac));
 	}
 
 	/**
@@ -50,13 +50,13 @@ class TimeUUID {
 	}
 
 	protected static function _getTimeBefore($sec, $msec = null) {
-		$nanos = (int)$sec * 10000000 + (isset($msec) ? (int)($msec * 10000000) : mt_rand(0, 10000000 - 1));
+		$nanos = (int)$sec * 10000000 + (isset($msec) ? (int)$msec * 10 + mt_rand(0, 10 - 1) : mt_rand(0, 10000000 - 1));
 		return $nanos - self::START_EPOCH;
 	}
 
 	protected static function _getTimeNow() {
-		list($msec, $sec) = explode(' ', microtime());
-		$nanos = (int)($sec . substr($msec, 2, 7));
+		$timeOfDay = gettimeofday();
+		$nanos = $timeOfDay['sec'] * 10000000 + $timeOfDay['usec'] * 10;
 
 		$nanosSince = $nanos - self::START_EPOCH;
 
@@ -84,7 +84,7 @@ class TimeUUID {
 	/**
 	 * 
 	 * @param int $sec
-	 * @param double $msec
+	 * @param int $msec
 	 * @return string
 	 */
 	public static function getTimeUUID($sec = null, $msec = null) {
@@ -102,7 +102,7 @@ class TimeUUID {
 				else {
 					// 0x8000 variant (2 bits)
 					// clock sequence (14 bits)
-					self::$_clockSeq = dechex(0x8000 | mt_rand(0, (1 << 14) - 1));
+					self::$_clockSeq = 0x8000 | mt_rand(0, (1 << 14) - 1);
 					
 					shm_put_var($shmId, self::$_clockSeqKey, self::$_clockSeq);
 				}
@@ -115,10 +115,6 @@ class TimeUUID {
 
 		$nanosSince = isset($sec) ? self::_getTimeBefore($sec, $msec) : self::_getTimeNow();
 
-		return str_pad(dechex(0xffffffff & $nanosSince), 8, '0', STR_PAD_LEFT) 
-			. '-' . str_pad(dechex($nanosSince >> 32 & 0xffff), 4, '0', STR_PAD_LEFT) 
-			. '-' . dechex($nanosSince >> 48 & 0xffff | 0x1000) 
-			. '-' . self::$_clockSeq 
-			. '-' . self::$_mac;
+		return sprintf('%08x-%04x-%04x-%04x-%012x', 0xffffffff & $nanosSince, $nanosSince >> 32 & 0xffff, $nanosSince >> 48 & 0xffff | 0x1000, self::$_clockSeq, self::$_nodeID);
 	}
 }
