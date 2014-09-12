@@ -21,7 +21,7 @@ class TimeUUID {
 
 	/**
 	 * 
-	 * @var string
+	 * @var int
 	 */
 	protected static $_clockSeq;
 
