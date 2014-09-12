@@ -115,6 +115,13 @@ class TimeUUID {
 
 		$nanosSince = isset($sec) ? self::_getTimeBefore($sec, $msec) : self::_getTimeNow();
 
-		return sprintf('%08x-%04x-%04x-%04x-%012x', 0xffffffff & $nanosSince, $nanosSince >> 32 & 0xffff, $nanosSince >> 48 & 0xffff | 0x1000, self::$_clockSeq, self::$_nodeID);
+		return sprintf(
+			'%08x-%04x-%04x-%04x-%012x',
+			0xffffffff & $nanosSince,
+			$nanosSince >> 32 & 0xffff,
+			$nanosSince >> 48 & 0xffff | 0x1000,
+			self::$_clockSeq,
+			self::$_nodeID
+		);
 	}
 }
