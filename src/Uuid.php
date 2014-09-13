@@ -3,9 +3,20 @@ namespace Uuid;
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
  */
-class TimeUUID {
+class Uuid {
 	// A grand day! 100's nanoseconds precision at 00:00:00.000 15 Oct 1582.
 	const START_EPOCH = -122192928000000000;
+	
+	const VERSION_TIME_BASED = 1;
+	const VERSION_DCE_SECURITY = 2;
+	const VERSION_MD5_HASHING = 3;
+	const VERSION_RANDOM = 4;
+	const VERSION_SHA1_HASHING = 5;
+	
+	const NAMESPACE_DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+	const NAMESPACE_URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+	const NAMESPACE_OID = '6ba7b812-9dad-11d1-80b4-00c04fd430c8';
+	const NAMESPACE_X500 = '6ba7b814-9dad-11d1-80b4-00c04fd430c8';
 	
 	protected static $_semKey = 1000;
 	protected static $_shmKey = 2000;
@@ -73,7 +84,53 @@ class TimeUUID {
 		
 		shm_detach($shmId);
 	}
+	
+	/**
+	 * 
+	 * @param string $hash
+	 * @param int $version
+	 * @return string
+	 */
+	public static function uuidNameBased($hash, $version){
+		// Set the version number
+		$timeHi = hexdec(substr($hash, 12, 4)) & 0x0fff;
+		$timeHi &= ~(0xf000);
+		$timeHi |= $version << 12;
+		
+		// Set the variant to RFC 4122
+		$clockSeqHi = hexdec(substr($hash, 16, 2)) & 0x3f;
+		$clockSeqHi &= ~(0xc0);
+		$clockSeqHi |= 0x80;
+		
+		return sprintf(
+				'%08s-%04s-%04s-%02s%02s-%012s',
+				substr($hash, 0, 8),	// time_low
+				substr($hash, 8, 4),	// time_mid
+				sprintf('%04x', $timeHi),// time_hi_and_version
+				sprintf('%02x', $clockSeqHi),// clock_seq_hi_and_reserved
+				substr($hash, 18, 2),	// clock_seq_low
+				substr($hash, 20, 12)	// node
+			);
+	}
 
+
+	/**
+	 * 
+	 * @param int $timestamp
+	 * @param int $clockSeq
+	 * @param int $nodeId
+	 * @return string
+	 */
+	public static function uuidTimeBased($timestamp, $clockSeq, $nodeId){
+		return sprintf(
+				'%08x-%04x-%04x-%04x-%012x',
+				$timestamp & 0xffffffff,
+				$timestamp >> 32 & 0xffff,
+				$timestamp >> 48 & 0x0fff | self::VERSION_TIME_BASED << 12,
+				$clockSeq,
+				$nodeId
+			);
+	}
 	
 	/**
 	 * 
@@ -81,13 +138,13 @@ class TimeUUID {
 	 * @param int $msec
 	 * @return string
 	 */
-	public static function createFromSeconds($sec, $msec = null) {
+	public static function uuidFromTimestamp($sec, $msec = null) {
 		if (self::$_clockSeq === null)
 			self::_initClockSeq();
 		
 		$nanos = $sec * 10000000 + (isset($msec) ? $msec * 10 + mt_rand(0, 9) : mt_rand(0, 9999999));
 		
-		return new self($nanos - self::START_EPOCH);
+		return self::uuidTimeBased($nanos - self::START_EPOCH, self::$_clockSeq, self::$_nodeId);
 	}
 	
 	public static function now(){
@@ -117,33 +174,41 @@ class TimeUUID {
 
 		sem_release($semId);
 
-		return new self($nanosSince);
-	}
-
-	/**
-	 * @var int
-	 */
-	protected $_nanosSince;
-
-	/**
-	 * 
-	 * @param int $nanosSince
-	 */
-	public function __construct($nanosSince){
-		$this->_nanosSince = $nanosSince;
+		return self::uuidTimeBased($nanosSince, self::$_clockSeq, self::$_nodeId);
 	}
 	
 	/**
+	 * 
+	 * @param string $hash
 	 * @return string
 	 */
-	public function __toString(){
-		return sprintf(
-				'%08x-%04x-%04x-%04x-%012x',
-				$this->_nanosSince & 0xffffffff,
-				$this->_nanosSince >> 32 & 0xffff,
-				$this->_nanosSince >> 48 & 0x0fff | 0x1000,
-				self::$_clockSeq,
-				self::$_nodeId
-			);
+	public static function uuidMd5($md5){
+		return self::uuidNameBased($md5, self::VERSION_MD5_HASHING);
+	}
+	
+	/**
+	 * 
+	 * @return string
+	 */
+	public static function uuidRandom(){
+		if (function_exists('openssl_random_pseudo_bytes')){
+			$bytes = openssl_random_pseudo_bytes(16);
+		}
+		else{
+			$bytes = '';
+			for($i = 0; $i < 16; ++$i)
+				$bytes .= chr(mt_rand(0, 255));
+		}
+		
+		return self::uuidNameBased(bin2hex($bytes), self::VERSION_RANDOM);
+	}
+	
+	/**
+	 *
+	 * @param string $hash
+	 * @return string
+	 */
+	public static function uuidSha1($hash){
+		return self::uuidNameBased($hash, self::VERSION_SHA1_HASHING);
 	}
 }
