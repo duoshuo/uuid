@@ -29,14 +29,14 @@ Uuid::setMAC('56:84:7a:fe:97:99');
 Uuid::now();
 
 // Version 1, first argument is timestamp, second argument is micro seconds.
-Uuid::uuidFromTimestamp(1410584506, 792720);
+Uuid::fromTimestamp(1410584506, 792720);
 
 // Version 3
-Uuid::uuidMd5(md5($string));
+Uuid::fromMd5(md5($string));
 
 // Version 4
-Uuid::uuidRandom();
+Uuid::fromRandom();
 
 // Version 5
-Uuid::uuidSha1(sha1($string));	
+Uuid::fromSha1(sha1($string));	
 ```

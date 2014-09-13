@@ -43,6 +43,14 @@ class Uuid {
 	public static function setMAC($mac) {
 		self::$_nodeId = hexdec(str_replace(':', '', $mac));
 	}
+	
+	/**
+	 * 
+	 * @param int $clockSeq
+	 */
+	public static function setClockSeq($clockSeq){
+		self::$_clockSeq = $clockSeq;
+	}
 
 	/**
 	 * 
@@ -87,11 +95,29 @@ class Uuid {
 	
 	/**
 	 * 
+	 * @param int $timestamp
+	 * @param int $clockSeq
+	 * @param int $nodeId
+	 * @return string
+	 */
+	public static function fromFields($timestamp, $clockSeq, $nodeId){
+		return sprintf(
+				'%08x-%04x-%04x-%04x-%012x',
+				$timestamp & 0xffffffff,
+				$timestamp >> 32 & 0xffff,
+				$timestamp >> 48 & 0x0fff | self::VERSION_TIME_BASED << 12,
+				$clockSeq,
+				$nodeId
+			);
+	}
+	
+	/**
+	 * 
 	 * @param string $hash
 	 * @param int $version
 	 * @return string
 	 */
-	public static function uuidNameBased($hash, $version){
+	public static function fromHashedName($hash, $version){
 		// Set the version number
 		$timeHi = hexdec(substr($hash, 12, 4)) & 0x0fff;
 		$timeHi &= ~(0xf000);
@@ -113,38 +139,19 @@ class Uuid {
 			);
 	}
 
-
-	/**
-	 * 
-	 * @param int $timestamp
-	 * @param int $clockSeq
-	 * @param int $nodeId
-	 * @return string
-	 */
-	public static function uuidTimeBased($timestamp, $clockSeq, $nodeId){
-		return sprintf(
-				'%08x-%04x-%04x-%04x-%012x',
-				$timestamp & 0xffffffff,
-				$timestamp >> 32 & 0xffff,
-				$timestamp >> 48 & 0x0fff | self::VERSION_TIME_BASED << 12,
-				$clockSeq,
-				$nodeId
-			);
-	}
-	
 	/**
 	 * 
 	 * @param int $sec
 	 * @param int $msec
 	 * @return string
 	 */
-	public static function uuidFromTimestamp($sec, $msec = null) {
+	public static function fromTimestamp($sec, $msec = null) {
 		if (self::$_clockSeq === null)
 			self::_initClockSeq();
 		
 		$nanos = $sec * 10000000 + (isset($msec) ? $msec * 10 + mt_rand(0, 9) : mt_rand(0, 9999999));
 		
-		return self::uuidTimeBased($nanos - self::START_EPOCH, self::$_clockSeq, self::$_nodeId);
+		return self::fromFields($nanos - self::START_EPOCH, self::$_clockSeq, self::$_nodeId);
 	}
 	
 	public static function now(){
@@ -174,7 +181,7 @@ class Uuid {
 
 		sem_release($semId);
 
-		return self::uuidTimeBased($nanosSince, self::$_clockSeq, self::$_nodeId);
+		return self::fromFields($nanosSince, self::$_clockSeq, self::$_nodeId);
 	}
 	
 	/**
@@ -182,15 +189,15 @@ class Uuid {
 	 * @param string $hash
 	 * @return string
 	 */
-	public static function uuidMd5($md5){
-		return self::uuidNameBased($md5, self::VERSION_MD5_HASHING);
+	public static function fromMd5($md5){
+		return self::fromHashedName($md5, self::VERSION_MD5_HASHING);
 	}
 	
 	/**
 	 * 
 	 * @return string
 	 */
-	public static function uuidRandom(){
+	public static function fromRandom(){
 		if (function_exists('openssl_random_pseudo_bytes')){
 			$bytes = openssl_random_pseudo_bytes(16);
 		}
@@ -200,7 +207,7 @@ class Uuid {
 				$bytes .= chr(mt_rand(0, 255));
 		}
 		
-		return self::uuidNameBased(bin2hex($bytes), self::VERSION_RANDOM);
+		return self::fromHashedName(bin2hex($bytes), self::VERSION_RANDOM);
 	}
 	
 	/**
@@ -208,7 +215,7 @@ class Uuid {
 	 * @param string $hash
 	 * @return string
 	 */
-	public static function uuidSha1($hash){
-		return self::uuidNameBased($hash, self::VERSION_SHA1_HASHING);
+	public static function fromSha1($hash){
+		return self::fromHashedName($hash, self::VERSION_SHA1_HASHING);
 	}
 }
