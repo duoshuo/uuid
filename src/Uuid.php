@@ -182,6 +182,13 @@ class Uuid {
 		return self::fromFields($nanosSince, self::$_clockSeq, self::$_nodeId);
 	}
 	
+	public static function getMicroseconds($timeUuid){
+		list($timeLow, $timeMid, $timeHi) = explode('-', $timeUuid);
+		$nanosSince = hexdec(substr($timeHi, 1) . $timeMid . $timeLow);
+
+		return ($nanosSince + self::START_EPOCH) / 10;
+	}
+
 	/**
 	 * 
 	 * @param string $hash
