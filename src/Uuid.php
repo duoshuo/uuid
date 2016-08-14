@@ -70,7 +70,9 @@ class Uuid {
 	
 	protected static function _initClockSeq(){
 		$shmId = shm_attach(self::$_shmKey);
-		self::$_clockSeq = shm_get_var($shmId, self::$_clockSeqKey);
+		if (shm_has_var($shmId, self::$_clockSeqKey)) {
+			self::$_clockSeq = shm_get_var($shmId, self::$_clockSeqKey);
+		}
 		
 		if (self::$_clockSeq === false) {
 			$semId = sem_get(self::$_semKey);
@@ -165,9 +167,11 @@ class Uuid {
 		sem_acquire($semId); //blocking
 
 		$shmId = shm_attach(self::$_shmKey);
-		$lastNanos = shm_get_var($shmId, self::$_lastNanosKey);
-		if ($lastNanos === false)
+		if (shm_has_var($shmId, self::$_lastNanosKey)) {
+			$lastNanos = shm_get_var($shmId, self::$_lastNanosKey);
+		} else {
 			$lastNanos = 0;
+		}
 
 		if ($nanosSince > $lastNanos)
 			$lastNanos = $nanosSince;
